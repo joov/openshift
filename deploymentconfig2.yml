@@ -1,0 +1,97 @@
+kind: DeploymentConfig
+apiVersion: apps.openshift.io/v1
+metadata:
+  name: frontend
+  namespace: jotest
+  labels:
+    env: demo
+    role: frontend
+spec:
+  strategy:
+    type: Rolling
+    rollingParams:
+      updatePeriodSeconds: 1
+      intervalSeconds: 1
+      timeoutSeconds: 600
+      maxUnavailable: 25%
+      maxSurge: 25%
+  triggers:
+    - type: ConfigChange
+    - type: ImageChange
+      imageChangeParams:
+        automatic: true
+        containerNames:
+          - frontend
+        from:
+          kind: ImageStreamTag
+          namespace: jotest
+          name: frontend:latest
+  replicas: 4
+  selector:
+    role: frontend
+  template:
+    metadata:
+      labels:
+        role: frontend
+    spec:
+      containers:
+        - resources: {}
+          readinessProbe:
+            httpGet:
+              path: /
+              port: 8080
+              scheme: HTTP
+            initialDelaySeconds: 5
+            timeoutSeconds: 1
+            periodSeconds: 5
+            successThreshold: 1
+            failureThreshold: 3
+          terminationMessagePath: /dev/termination-log
+          name: frontend
+          livenessProbe:
+            httpGet:
+              path: /
+              port: 8080
+              scheme: HTTP
+            initialDelaySeconds: 2
+            timeoutSeconds: 1
+            periodSeconds: 5
+            successThreshold: 1
+            failureThreshold: 3
+          env:
+            - name: REACT_APP_APIHOSTPORT
+              value: api-jotest.apps.openshift.hereto.be
+          ports:
+            - containerPort: 8080
+              protocol: TCP
+          imagePullPolicy: IfNotPresent
+          terminationMessagePolicy: File
+      restartPolicy: Always
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: frontend
+  namespace: jotest
+  labels:
+    role: frontend
+    env: demo
+spec:
+  ports:
+   - protocol: TCP
+     port: 8080
+  selector:
+    role: frontend
+---
+apiVersion: route.openshift.io/v1
+kind: Route
+metadata:
+  name: frontend
+  namespace: jotest
+spec:
+  path: /
+  to:
+    kind: Service
+    name: frontend
+  port:
+    targetPort: 8080
